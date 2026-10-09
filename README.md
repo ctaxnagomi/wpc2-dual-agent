@@ -11,6 +11,7 @@ gate, and context-efficient seeds.
 .AGENTS/
 └── _DUAL-AGENTS/
     ├── ORCHESTRATOR.md                      # async loop, gated routing, policy gate
+    ├── MEMORY_SCOPE.md                       # per-project memory scope + salience gate
     ├── AGENT-PLAN/
     │   ├── JEV_RULESET_AGENT-PLAN.md        # planning ruleset
     │   ├── base_statements_stacks.md        # organic stack source of truth
@@ -48,6 +49,15 @@ export JEV_API_KEY=...
 
 - Dataset: `ctaxnagomi/INSTRUCT_JEV`
 - Primitives: `CHOICE`, `NOUL`, `SCORE`
+
+## Memory (DGUI-HyperMem)
+
+Long-term memory for this kit lives in the **`wpc2-dual-agent`** scope (not the shared
+`default`). See [`MEMORY_SCOPE.md`](.AGENTS/_DUAL-AGENTS/MEMORY_SCOPE.md).
+
+> **Gate:** DGUI-HyperMem only surfaces memories with JEV `salience ≥ ~3.0`. Write one
+> rich, high-signal `project` memory and verify `active ≥ 1` afterwards — low-salience
+> notes are stored but invisible to search.
 
 ## Developer Tags
 

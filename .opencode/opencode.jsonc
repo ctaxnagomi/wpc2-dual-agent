@@ -1,0 +1,10 @@
+{
+  // Project OpenCode config for the WPC2 Dual-Agent demo.
+  // Agents are auto-discovered from .opencode/agents/ (agent-plan, agent-coding, orchestrator).
+  // The two JEV rulesets are loaded as project instructions so both agents always have them.
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".AGENTS/_DUAL-AGENTS/AGENT-PLAN/JEV_RULESET_AGENT-PLAN.md",
+    ".AGENTS/_DUAL-AGENTS/AGENT-CODING/JEV_RULESET_AGENT-CODING.md"
+  ]
+}

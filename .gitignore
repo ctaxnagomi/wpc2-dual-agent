@@ -1,0 +1,14 @@
+# session screenshots (not part of the scaffold)
+*.png
+
+# dependencies
+node_modules/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+Thumbs.db

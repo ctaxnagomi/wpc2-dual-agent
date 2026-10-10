@@ -1,0 +1,7 @@
+{
+  "name": "wpc2-dual-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WPC2 Dual-Agent (AGENT-PLAN + AGENT-CODING) + JEV scaffold",
+  "type": "module"
+}

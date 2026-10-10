@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>KD-WPC — Dual-Agent Activity (async orchestrator)</title>
+<!-- KD-WPC adaptation of "Agent Activity" by Angus Forbes (MIT).
+     Charts come from vendor/charts.js (unchanged upstream engine).
+     Data: data/snapshot.json (real OpenCode session logs) + data/kdwpc_orchestrator.json (seeds).
+     Serve: python -m http.server 8777  ->  http://localhost:8777/kdwpc.html -->
+<style>
+  :root { --bg:#fff; --fg:#575279; --accent:#56949f; --muted:#9893a5; --desk:#ede7e1; --font:"JetBrainsMono Nerd Font", "Cascadia Mono", Consolas, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--desk); font-family: var(--font); color: var(--fg); }
+  .panel { max-width: 1600px; margin: 24px auto; background: var(--bg); border: 3px solid var(--accent); padding: 22px 26px 18px; }
+  .head { display: flex; align-items: center; gap: 16px; }
+  .head .icon { font-size: 34px; width: 40px; }
+  .head h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  .head .sub { font-size: 12px; font-weight: 700; letter-spacing: 3px; margin-top: 3px; }
+  .head .sub em { font-style: normal; color: var(--muted); font-weight: 500; letter-spacing: 1.5px; }
+  .seg { margin-left: auto; display: flex; border: 1px solid color-mix(in srgb, var(--fg) 30%, transparent); }
+  .seg button { font: 600 12px var(--font); letter-spacing: 1.5px; color: var(--fg); background: transparent; border: 0; padding: 7px 14px; cursor: pointer; }
+  .seg button.on { background: var(--fg); color: var(--bg); }
+  .rule { height: 1px; background: color-mix(in srgb, var(--fg) 12%, transparent); margin: 14px 0; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); }
+  .kpi { padding: 0 14px; border-left: 1px solid color-mix(in srgb, var(--fg) 10%, transparent); }
+  .kpi:first-child { border-left: 0; padding-left: 0; }
+  .kpi .l { font-size: 10.5px; font-weight: 700; letter-spacing: 1.8px; }
+  .kpi .v { font-size: 24px; margin: 3px 0 1px; }
+  .kpi .d { font-size: 11px; color: var(--muted); }
+  .row { display: grid; }
+  .tile { padding: 0 16px; border-left: 1px solid color-mix(in srgb, var(--fg) 10%, transparent); min-width: 0; }
+  .tile:first-child { border-left: 0; padding-left: 0; } .tile:last-child { padding-right: 0; }
+  .tile h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+  .tile .cap { font-size: 11px; color: var(--muted); margin: 3px 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  canvas { display: block; width: 100%; }
+  .foot { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 12px; }
+  #tip { position: fixed; pointer-events: none; background: var(--bg); border: 1px solid var(--accent); padding: 5px 8px; font-size: 11px; display: none; white-space: pre; z-index: 9; }
+  /* KD-WPC dual-agent orchestrator strip */
+  .orch { display: grid; gap: 12px; }
+  .orchhead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .orchhead h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+  .orchhead .proj { font-size: 11px; color: var(--muted); }
+  .pipe { display: flex; align-items: stretch; gap: 6px; flex-wrap: wrap; }
+  .step { border: 1px solid color-mix(in srgb, var(--fg) 18%, transparent); padding: 6px 10px; min-width: 104px; }
+  .step .sk { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; }
+  .step .sn { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .step.done { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .step.pending { opacity: .55; }
+  .arrow { align-self: center; color: var(--muted); font-size: 12px; }
+  .seedrow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .seed { border-left: 2px solid var(--accent); padding-left: 10px; }
+  .seed .sl { font-size: 10.5px; font-weight: 700; letter-spacing: 1.4px; }
+  .seed .sv { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .seed .sv b { color: var(--fg); font-weight: 600; }
+</style>
+<script src="vendor/charts.js"></script>
+</head>
+<body>
+<div class="panel">
+  <div class="head">
+    <div class="icon">󰄧</div>
+    <div><h1>KD-WPC — Dual-Agent Activity</h1><div class="sub">ASYNC ORCHESTRATOR · WHAT THE AGENTS WORKED ON <em id="rangeLabel"></em></div></div>
+    <div class="seg" id="seg"><button data-r="24h">24H</button><button data-r="7d">7D</button><button data-r="1mo">1MO</button><button data-r="1y">1Y</button></div>
+  </div>
+  <div class="rule"></div>
+  <section id="orch" class="orch" aria-label="Dual-agent orchestrator"></section>
+  <div class="rule"></div>
+  <div class="kpis" id="kpis"></div><div class="rule"></div>
+  <div class="row" style="grid-template-columns:5fr 7fr">
+    <div class="tile"><h2>When</h2><div class="cap" id="heatCap"></div><canvas data-c="heat" height="220"></canvas></div>
+    <div class="tile"><h2>Where the tokens went</h2><div class="cap">tokens → agent → theme → work kind</div><canvas data-c="sankey" height="236"></canvas></div>
+  </div>
+  <div class="rule"></div>
+  <div class="row" style="grid-template-columns:7fr 5fr">
+    <div class="tile"><h2>Themes over time</h2><div class="cap">agent busy time per theme</div><canvas data-c="stream" height="220"></canvas></div>
+    <div class="tile"><h2>Topic map</h2><div class="cap">area = busy time · deeper fill = rising</div><canvas data-c="topics" height="222"></canvas></div>
+  </div>
+  <div class="rule"></div>
+  <div class="row" style="grid-template-columns:repeat(6, 1fr)">
+    <div class="tile"><h2>Terms</h2><div class="cap">in your prompts, vs previous period</div><canvas data-c="terms" height="200"></canvas></div>
+    <div class="tile"><h2>Work mix</h2><div class="cap">busy time by work kind · from tool calls</div><canvas data-c="mixChart" height="200"></canvas></div>
+    <div class="tile"><h2>Agents at once</h2><div class="cap">peak ─ · average while active ▒</div><canvas data-c="conc" height="200"></canvas></div>
+    <div class="tile"><h2>Tools</h2><div class="cap">calls, by work kind</div><canvas data-c="tools" height="200"></canvas></div>
+    <div class="tile"><h2>Subagents</h2><div class="cap">runs by type · outcome</div><canvas data-c="subTypes" height="200"></canvas></div>
+    <div class="tile"><h2>Subagent runs</h2><div class="cap">when × how long · by model</div><canvas data-c="subRuns" height="200"></canvas></div>
+  </div>
+  <div class="foot"><span id="footL"></span><span id="footR"></span></div>
+</div>
+<div id="tip"></div>
+<script>
+const P = { bg: "#ffffff", fg: "#575279", accent: "#56949f", you: "#b4637a", font: "JetBrainsMono Nerd Font",
+  themes: ["#56949f", "#907aa9", "#286983", "#ea9d34", "#d7827e", "#cf8057", "#b4637a", "#9893a5", "#67402b"],
+  kinds: { "Pi": "#575279", "Claude Code": "#cf8057", "Codex": "#286983", "OpenCode": "#4c8f8f", "Subagents": "#907aa9" } };
+const qs = new URLSearchParams(location.search);
+let R = qs.get("r") || "7d", SNAP = null;
+const tip = document.getElementById("tip");
+
+/* ── KD-WPC dual-agent orchestrator ─────────────────────────────── */
+function renderOrch(O) {
+  const el = document.getElementById("orch");
+  if (!O) { el.innerHTML = '<div class="seed .sv" style="color:var(--muted);font-size:11px">orchestrator: run kdwpc_collect.py to generate data/kdwpc_orchestrator.json</div>'; return; }
+  const steps = (O.pipeline || []).map((s, i, a) =>
+    `<div class="step ${s.state}"><div class="sk">${s.label}</div><div class="sn">${s.note || ""}</div></div>` +
+    (i < a.length - 1 ? '<div class="arrow">→</div>' : "")).join("");
+  const s0 = (O.seeds || {}).plan_to_coding, s1 = (O.seeds || {}).coding_to_plan;
+  const sum0 = s0 ? `status <b>${s0.status}</b> · stack <b>${s0.approved_stack ?? "—"}</b> · visual <b>${s0.source_visual ?? "—"}</b> · tasks <b>${(s0.tasks || []).length}</b> · jev <b>${s0.jev ? s0.jev.status : "—"}</b>` : "—";
+  const sum1 = s1 ? `status <b>${s1.status}</b> · artifacts <b>${(((s1.build || {}).artifacts) || []).length}</b> · stack <b>${(s1.build || {}).stack_used || "—"}</b> · jev <b>${(s1.post_output_checks || {}).jev_quality_check || "—"}</b>` : "—";
+  el.innerHTML =
+    `<div class="orchhead"><h2>KD-WPC · Dual-Agent Async Orchestrator</h2><span class="proj">${O.project || ""} · ctaxnagomi · krackeddevs</span></div>` +
+    `<div class="pipe">${steps}</div>` +
+    `<div class="seedrow">` +
+      `<div class="seed"><div class="sl">SEED 00 · PLAN → CODING</div><div class="sv">${sum0}</div></div>` +
+      `<div class="seed"><div class="sl">SEED 01 · CODING → PLAN</div><div class="sv">${sum1}</div></div>` +
+    `</div>`;
+}
+
+function render() {
+  document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.r === R));
+  const rr = SNAP.ranges[R];
+  document.getElementById("rangeLabel").textContent = "· " + rr.label.toUpperCase();
+  document.getElementById("heatCap").textContent = { "theme-hour": "theme × hour", "theme-time": "theme × time", "day-hour": "day × hour of day", "week-hour": "week × hour of day" }[rr.heat.mode] + " · agent time vs your time";
+  document.getElementById("kpis").innerHTML = kpiItems(SNAP, R).map(k => `<div class="kpi"><div class="l">${k.label}</div><div class="v">${k.value}</div><div class="d"><b style="color:${k.plain ? "inherit" : k.up ? P.accent : P.you}">${k.delta}</b>${k.delta && !k.plain && k.delta !== "new" ? " vs prev" : ""}</div></div>`).join("");
+  document.querySelectorAll("canvas[data-c]").forEach(cv => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+    cv.style.height = h + "px"; cv.width = w * dpr; cv.height = h * dpr;
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    cv._hits = window[cv.dataset.c](ctx, w, h, SNAP, R, P) || [];
+    cv.onmousemove = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      const hit = cv._hits.find(t => x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h);
+      if (!hit) { tip.style.display = "none"; return; } tip.textContent = hit.text; tip.style.display = "block"; tip.style.left = e.clientX + 12 + "px"; tip.style.top = e.clientY + 12 + "px"; };
+    cv.onmouseleave = () => tip.style.display = "none";
+  });
+  const c = SNAP.counts, age = Math.round((Date.now() / 1000 - SNAP.generated) / 60);
+  document.getElementById("footL").textContent = `no AI · rule themes · work kind from tool calls · KD-WPC dual-agent`;
+  document.getElementById("footR").textContent = `OpenCode ${c.opencode ?? 0} · Pi ${c.pi ?? 0} · Claude Code ${c.claude ?? 0} · Codex ${c.codex ?? 0} sessions · updated ${age} min ago`;
+}
+document.querySelectorAll("#seg button").forEach(b => b.onclick = () => { R = b.dataset.r; render(); });
+fetch(qs.get("snap") || "data/snapshot.json")
+  .then(r => r.json()).then(s => { SNAP = s; document.fonts.ready.then(render); });
+fetch(qs.get("orch") || "data/kdwpc_orchestrator.json")
+  .then(r => r.ok ? r.json() : null).then(renderOrch).catch(() => renderOrch(null));
+</script>
+</body>
+</html>

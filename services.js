@@ -76,6 +76,36 @@ const services = {
     high_quality_output: true,
     prefer_less_token: true,
   },
+  // Per-agent SDK config (mirrored by .AGENTS/_DUAL-AGENTS/visualization/kdwpc_collect.py SDK_CONF).
+  sdk: {
+    plan: {
+      provider: "opencode",                 // plan runs on the OpenCode session model
+      model: "big-pickle",
+      api_key_env: null,                    // no external key — OpenCode account model
+      agentic_tool_enable: true,
+      tool_calls: true,
+      high_quality_output: true,
+      prefer_less_token: true,
+    },
+    coding: {
+      provider: "openai",                   // openai SDK (pip install openai)
+      base_url: "https://litellm.rapidscreen.io/v1",
+      api_key_env: "OPENAI_API_KEY",        // env-only — never hardcode
+      models: [
+        "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
+        "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6-terra",
+        "gpt-6-sol", "gpt-6-luna",
+        "deepseek-v4-flash",                // default
+      ],
+      default_model: "deepseek-v4-flash",
+      agentic_tool_enable: true,
+      tool_calls: true,
+      high_quality_output: true,
+      prefer_less_token: true,
+      token_efficient: true,
+      imports: ["compactDOM", "snapDOM", "html2canvas", "playwrightOrbrowserOSneo"],
+    },
+  },
   tooling: {
     compactDOM: true,
     snapDOM: true,

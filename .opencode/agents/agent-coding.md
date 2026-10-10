@@ -52,6 +52,33 @@ use_jev_for_quality_checks = true
 `agentic_tool_enable` + `tool_calls` are `true`. Imports: `compactDOM`, `snapDOM`, `html2canvas`,
 `playwrightOrbrowserOSneo` — see ruleset → *Imports / Tools* for what each is used for.
 
+## SDK config (this demonstration)
+Agent-Coding runs on the **openai SDK** (`pip install openai`) pointed at the demo gateway — not the
+OpenCode session model:
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["OPENAI_API_KEY"],          # env-only — never hardcode, never commit
+    base_url="https://litellm.rapidscreen.io/v1",
+)
+
+response = client.chat.completions.create(
+    model="deepseek-v4-flash",                     # default; see selector below
+    messages=[{"role": "user", "content": "..."}],
+)
+```
+
+**Model selector** (dashboard → AGENT-CODING → SDK CONFIG; default **`deepseek-v4-flash`**):
+`gpt-5.5` · `gpt-5.4` · `gpt-5.4-mini` · `gpt-5.4-nano` · `gpt-5.6-sol` · `gpt-5.6-luna` ·
+`gpt-5.6-terra` · `gpt-6-sol` · `gpt-6-luna` · `deepseek-v4-flash`
+
+**Agentic tooling (per ruleset → Required Tooling):** `agentic_tool_enable: true`, `tool_calls: true`,
+`high_quality_output: true`, `prefer_less_token: true`, `token_efficient: true`; imports
+`compactDOM`, `snapDOM`, `html2canvas`, `playwrightOrbrowserOSneo`.
+
 ## Developer Tags (nest in live project)
 ```
 ===Developer===

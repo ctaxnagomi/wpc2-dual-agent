@@ -539,7 +539,7 @@ def _oc_sessions(d):
         try:  # KD-WPC: newer OpenCode keeps sessions + messages in session_v2 / session_message
             con = _oc_ro(db)
             if con.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='session_v2'").fetchone()[0]:
-                for sid, upd, n in con.execute("SELECT s.id, s.time_updated, (SELECT COUNT(*) FROM session_message sm WHERE sm.session_id = s.id) FROM session_v2 s"):
+                for sid, upd, n in con.execute("SELECT s.id, (SELECT MAX(sm.time_updated) FROM session_message sm WHERE sm.session_id = s.id), (SELECT COUNT(*) FROM session_message sm WHERE sm.session_id = s.id) FROM session_v2 s"):  # KD-WPC live: sign from the newest message, session.time_updated lags
                     out.append((f"{db}#v2#{sid}", (int(n or 0), (upd or 0) / 1000)))
             con.close()
         except sqlite3.Error as e:

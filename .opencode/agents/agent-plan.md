@@ -61,6 +61,11 @@ You are **AGENT-PLAN**. You obey the ruleset below and you seed **AGENT-CODING**
 `agentic_tool_enable` + `tool_calls` are `true`. Imports: `compactDOM`, `snapDOM`, `html2canvas`,
 `playwrightOrbrowserOSneo` — see ruleset → *Imports / Tools* for what each is used for.
 
+## SDK config (this demonstration)
+Agent-Plan runs on the **OpenCode** session model — **`big-pickle`** (provider `opencode`, no external
+key, keyless account model). Agentic tooling: `agentic_tool_enable`, `tool_calls`,
+`high_quality_output`, `prefer_less_token` — see `services.js` → `services.sdk.plan`.
+
 ## Developer Tags (nest in live project)
 ```
 ===Developer===

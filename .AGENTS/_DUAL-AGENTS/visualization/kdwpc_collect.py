@@ -147,6 +147,25 @@ def read_live(seed0, seed1):
             "declared": (r or {}).get("status"),
             "flags": (r or {}).get("flags", []),
         }
+    # base statements (plan) — trigger sources + first content line so the dashboard
+    # can show what context a JEV generation refers to and when the agent last re-read them
+    for key, bs_files in BASE_STATEMENTS.items():
+        bs = {}
+        for name, p in bs_files:
+            try:
+                st = os.stat(p)
+                head = ""
+                with open(p, "r", encoding="utf-8") as fh:
+                    for ln in fh:
+                        ln = ln.strip()
+                        if ln and not ln.startswith("#"):
+                            head = ln[:96]
+                            break
+                bs[name] = {"file": os.path.basename(p), "ts": int(st.st_mtime), "size": st.st_size, "head": head}
+            except OSError:
+                bs[name] = {"file": os.path.basename(p), "ts": 0, "size": 0, "head": ""}
+        if key in state["agents"]:
+            state["agents"][key]["base_statements"] = bs
     # carry over any jev_suggestion / sdk the local bridge (kdwpc_jev.py) generated since the last pass
     try:
         prev = {}
@@ -168,6 +187,40 @@ def read_live(seed0, seed1):
                     conf["model"] = pick
                     conf["key_status"] = "SET · env-only (OPENAI_API_KEY)" if os.environ.get("OPENAI_API_KEY") \
                         else "missing · env-only (OPENAI_API_KEY)"
+                    # STACK GATE — coding's SDK stack may ONLY come from base_statements_stacks.md,
+                    # and JEV's stack_choice decision (from the plan agent's suggestion box) must
+                    # comply with the recorded approval. No arbitrary stacks, ever.
+                    stk = parse_stacks_json(os.path.join(PROJECT_ROOT, ".AGENTS", "_DUAL-AGENTS",
+                                                         "AGENT-PLAN", "base_statements_stacks.md"))
+                    default = fmt_stack((stk or {}).get("default_stack"))
+                    override = (stk or {}).get("user_override")
+                    approved = (stk or {}).get("approved_stack") or override or default
+                    allowed = []
+                    for s in (default, override, approved):
+                        if s and s not in allowed:
+                            allowed.append(s)
+                    jevdec = None
+                    psug = (state["agents"].get("plan") or {}).get("jev_suggestion") or {}
+                    ch = ((psug.get("statements") or {}).get("stack_choice")) if psug.get("statements") else None
+                    if isinstance(ch, dict):
+                        jevdec = ch.get("choice")
+                    elif isinstance(ch, str):
+                        jevdec = ch
+                    by_jev = bool((stk or {}).get("approved_by_jev"))
+                    if by_jev:
+                        sts = "COMPLIANT · approved by JEV"
+                    elif approved and jevdec:
+                        sts = ("COMPLIANT · matches JEV decision" if approved == jevdec
+                               else "NON-COMPLIANT · JEV decided “%s”" % str(jevdec))
+                    elif approved:
+                        sts = "pending JEV compliance · verify via Generate"
+                    else:
+                        sts = "pending · base default (HTML5 + SCSS3 + Vanilla JS)"
+                    conf["stack"] = approved or "—"
+                    conf["stack_source"] = "base_statements_stacks.md"
+                    conf["stack_allowed"] = allowed or None
+                    conf["jev_stack_decision"] = jevdec
+                    conf["stack_compliant"] = sts
                 state["agents"][k]["sdk"] = conf
     except Exception as e:
         print(f"kdwpc: jev_suggestion/sdk carry-over failed: {e}", file=sys.stderr)
@@ -196,6 +249,16 @@ JEVRULES = {
 JEV_ROLE = {
     "plan":   "statement gen: base statements -> CHOICE / NOUL / SCORE",
     "coding": "quality checks: browser-capture diff -> verdicts (post_output)",
+}
+
+# Base statements — the plan agent's JEV trigger sources (compliance context).
+# The dashboard highlights the JEV box + lights the TRIGGER lamp when one of
+# these files changes (mtime = when it was last written/triggered).
+BASE_STATEMENTS = {
+    "plan": [
+        ("stacks",    os.path.join(PROJECT_ROOT, ".AGENTS", "_DUAL-AGENTS", "AGENT-PLAN", "base_statements_stacks.md")),
+        ("viewports", os.path.join(PROJECT_ROOT, ".AGENTS", "_DUAL-AGENTS", "AGENT-PLAN", "base_statements_viewports.md")),
+    ],
 }
 
 # Per-agent SDK config — mirror of services.js `services.sdk` (keep in sync).
@@ -239,6 +302,30 @@ def read_agent_ruleset(path):
         if re.search(r"\b" + re.escape(flag) + r"\b", txt):
             out["flags"].append(flag)
     return out
+
+
+def parse_stacks_json(path):
+    """Extract the JSON block from base_statements_stacks.md -> dict (or None).
+
+    This file is the organic source of truth for stack selection: the ONLY
+    stacks Agent-Coding's SDK config may use come from here.
+    """
+    try:
+        txt = open(path, "r", encoding="utf-8").read()
+        m = re.search(r"```json\s*(\{.*?\})\s*```", txt, re.S)
+        return json.loads(m.group(1)) if m else None
+    except Exception:
+        return None
+
+
+def fmt_stack(d):
+    """{'markup':..,'style':..,'script':..} -> 'HTML5 + SCSS3 + Vanilla JS'."""
+    if not isinstance(d, dict):
+        return None
+    parts = [d.get(k) for k in ("markup", "style", "script") if d.get(k)]
+    if not parts and d.get("name"):
+        parts = [d.get("name")]
+    return " + ".join(parts) if parts else None
 
 
 def ensure_config():

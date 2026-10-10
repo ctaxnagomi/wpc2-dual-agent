@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KD-WPC · DEMONSTRATION OUTPUT</title>
+<!--
+  KD-WPC DEMONSTRATION OUTPUT — the demonstration readouts, on their OWN localhost
+  (http://localhost:8779/output.html). The topology visualizer stays on 8777
+  (kdwpc.html) and shows the loop board only; THIS page shows what the agents
+  produced: JEV statements per agent (Typesafe System One via the local bridge),
+  the coding SDK config (model selector), and the real OpenCode activity charts.
+
+  Data: data/snapshot.json (OpenCode session logs) · data/kdwpc_live.json (live status +
+  jev_suggestion + sdk) · data/kdwpc_orchestrator.json (seeds). Bridge: http://localhost:8778.
+  Charts engine: vendor/charts.js (unchanged upstream).
+  Serve: python -m http.server 8779  ->  http://localhost:8779/output.html
+-->
+<style>
+  :root{
+    --bg:#0b0b0d; --panel:#131317; --panel2:#191920; --head:#0e0e11;
+    --line:#26262c; --steel:#2e2e35; --hard:#3d3d45;
+    --fg:#e9e5da; --mut:#94907f; --dimm:#5d5a4f;
+    --acc:#ff4a1f; --acc2:#ffb000; --live:#58e081; --acid:#c9f24b;
+    --ease:cubic-bezier(.16,1,.3,1); --ease2:cubic-bezier(.65,0,.35,1);
+    --mono:"Cascadia Mono","JetBrainsMono Nerd Font",Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px),
+      radial-gradient(1100px 560px at 50% -8%, #18181d 0%, var(--bg) 62%);
+    background-size:28px 28px, 28px 28px, auto;
+    color:var(--fg); font-family:var(--mono); font-size:11px;
+  }
+  .plate{max-width:1440px;margin:18px auto;padding:0 14px}
+  .hazard{height:5px;border-left:2px solid var(--acc);border-right:2px solid var(--acc);
+    background:repeating-linear-gradient(45deg,var(--acc2) 0 10px,var(--bg) 10px 20px);opacity:.9}
+  .phead{display:flex;align-items:stretch;margin-top:10px;background:var(--panel);
+    border:1px solid var(--hard);border-top:2px solid var(--acc);position:relative;flex-wrap:wrap}
+  .phead::before{content:"";position:absolute;top:-1px;right:-1px;width:10px;height:10px;
+    border-top:2px solid var(--acc);border-right:2px solid var(--acc)}
+  .brand{display:flex;align-items:center;gap:14px;padding:12px 16px;flex:1;min-width:260px}
+  .idx{font-size:10px;font-weight:800;letter-spacing:2px;color:var(--acc);
+    border:1px solid var(--hard);padding:5px 8px;background:var(--head);white-space:nowrap}
+  .brand h1{margin:0;font-size:16px;letter-spacing:3.4px;font-weight:800}
+  .brand .sub{font-size:10px;letter-spacing:2.2px;color:var(--mut);margin-top:3px}
+  .hctrls{display:flex;align-items:center;gap:10px;padding:0 14px;border-left:1px solid var(--line);flex-wrap:wrap}
+  .btn{font:800 11px var(--mono);letter-spacing:2px;color:var(--fg);cursor:pointer;
+    background:var(--head);border:1px solid var(--hard);padding:10px 13px;text-transform:uppercase;
+    text-decoration:none;transition:background .18s var(--ease2),color .18s var(--ease2),box-shadow .18s var(--ease2)}
+  .btn:hover{background:var(--fg);color:var(--bg)}
+  .btn.ac{border-color:var(--acc);color:var(--acc)}
+  .btn.ac:hover{background:var(--acc);color:#0b0b0d;box-shadow:0 0 0 3px rgba(255,74,31,.18)}
+  .btn.live.on{background:var(--acc);color:#0b0b0d;border-color:var(--acc);
+    box-shadow:0 0 0 4px rgba(255,74,31,.16);animation:btnpulse 1.8s var(--ease2) infinite}
+  @keyframes btnpulse{0%,100%{box-shadow:0 0 0 4px rgba(255,74,31,.16)}60%{box-shadow:0 0 0 8px rgba(255,74,31,.03)}}
+  .seg{display:flex;border:1px solid var(--hard)}
+  .seg button{font:800 10px var(--mono);letter-spacing:1.4px;color:var(--mut);background:transparent;border:0;padding:11px 10px;cursor:pointer;transition:background .15s var(--ease2),color .15s var(--ease2)}
+  .seg button:hover{color:var(--fg)}
+  .seg button.on{background:var(--fg);color:var(--bg)}
+  .gates{display:flex;flex-wrap:wrap;gap:6px 22px;padding:8px 12px;margin-top:8px;
+    border:1px solid var(--line);background:rgba(255,255,255,.015);color:var(--mut);
+    font-size:10px;letter-spacing:1.6px;align-items:center}
+  .gates b{color:var(--fg);font-weight:700}
+  .gates .glive{color:var(--live);font-weight:800}
+  .gates .gdead{color:var(--dimm)}
+  .gates .gacc{color:var(--acc)}
+  .gates a{color:var(--acc);text-decoration:none;border-bottom:1px dashed var(--hard)}
+  .gates a:hover{color:var(--acc2)}
+
+  .sect{margin-top:16px;opacity:0;transform:translateY(12px)}
+  body.go .sect{animation:rise .5s var(--ease) both}
+  body.go .sect:nth-of-type(2){animation-delay:.1s}
+  @keyframes rise{to{opacity:1;transform:translateY(0)}}
+  .secth{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:800;letter-spacing:2.6px;
+    padding:9px 12px;background:var(--head);border:1px solid var(--hard);border-left:3px solid var(--acc)}
+  .secth span{color:var(--acc);border:1px solid var(--hard);padding:2px 6px;font-size:9px;letter-spacing:2px}
+  .secth em{font-style:normal;color:var(--dimm);letter-spacing:1.6px;font-weight:600}
+
+  /* ── agent output panels ── */
+  .agrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+  .apanel{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--hard);box-shadow:0 14px 30px -18px rgba(0,0,0,.9)}
+  .apanel .cor{position:absolute;width:11px;height:11px;pointer-events:none}
+  .apanel .cor.tl{top:-1px;left:-1px;border-top:2px solid var(--acc);border-left:2px solid var(--acc)}
+  .apanel .cor.br{bottom:-1px;right:-1px;border-bottom:2px solid var(--acc);border-right:2px solid var(--acc)}
+  .bhead{display:flex;align-items:center;gap:9px;padding:9px 11px;border-bottom:1px solid var(--line);background:var(--head)}
+  .bidx{font-size:9.5px;font-weight:800;letter-spacing:2px;color:var(--acc);border:1px solid var(--hard);padding:2px 5px}
+  .bhead h3{margin:0;font-size:12px;letter-spacing:2.4px;font-weight:800}
+  .lamp{width:8px;height:8px;border-radius:50%;background:var(--dimm);box-shadow:0 0 0 1px #000 inset;margin-left:auto;flex:none}
+  .lamp.live{background:var(--live);box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 10px rgba(88,224,129,.55);animation:blip 1.5s var(--ease2) infinite}
+  @keyframes blip{0%,100%{transform:scale(1)}50%{transform:scale(.72)}}
+  .arole{font-size:9.5px;letter-spacing:2px;color:var(--mut);padding:7px 11px 2px;text-transform:uppercase}
+  .abody{padding:10px 12px 14px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;font-weight:800;letter-spacing:1.6px;padding:3px 9px;border:1px solid currentColor}
+  .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+  .pill.running{color:var(--live)} .pill.running::before{animation:blip 1s var(--ease2) infinite}
+  .pill.warm{color:var(--acc2)} .pill.idle{color:var(--dimm)} .pill.stub{color:#ff8a7a} .pill.live-p{color:var(--acid)}
+
+  .jnote{font-size:10px;color:var(--mut);line-height:1.6;margin-top:6px}
+  .jnote b{color:var(--fg)}
+  .jnote .cmd{background:rgba(255,255,255,.06);border:1px solid var(--line);padding:1px 6px;color:var(--acc2)}
+  textarea.in{width:100%;margin-top:8px;padding:8px 9px;font:inherit;font-size:10.5px;line-height:1.5;color:var(--fg);
+    background:rgba(0,0,0,.3);border:1px solid var(--hard);resize:vertical;min-height:54px}
+  textarea.in:focus{outline:none;border-color:var(--acc)}
+  .jbb{display:flex;align-items:center;gap:9px;margin-top:8px;flex-wrap:wrap}
+  .jbb button{font:800 10px var(--mono);letter-spacing:1.6px;color:var(--acc);cursor:pointer;padding:8px 12px;
+    background:var(--head);border:1px solid var(--acc);transition:background .15s var(--ease2),color .15s var(--ease2)}
+  .jbb button:hover{background:var(--acc);color:#0b0b0d}
+  .jbb button:disabled{opacity:.45;cursor:default}
+  .js{font-size:10px;color:var(--mut);line-height:1.5;margin-top:6px}
+  .js.err{color:#ff8a7a}
+  .st{margin-top:8px;font-size:10.5px;color:var(--mut);line-height:1.7;border-left:2px solid rgba(255,74,31,.5);padding-left:9px}
+  .st b{color:var(--fg);font-weight:700}
+  .st .lbl{display:inline-block;min-width:104px;color:var(--dimm)}
+  .st + .st{margin-top:4px}
+  .sdkcap{font-size:10px;font-weight:800;letter-spacing:1.8px;color:var(--mut);margin:12px 0 6px;display:flex;align-items:center;gap:8px}
+  .sdkcap::before{content:"";width:14px;height:1px;background:var(--hard)}
+  table.sdk{width:100%;border-collapse:collapse;font-size:10.5px}
+  table.sdk td{padding:5px 8px;border:1px solid var(--line);vertical-align:top}
+  table.sdk td.k{color:var(--mut);font-weight:700;letter-spacing:1px;width:96px;white-space:nowrap}
+  table.sdk td.v{color:var(--fg);word-break:break-all}
+  table.sdk td.v b{font-weight:700}
+  table.sdk select{font:inherit;font-size:10.5px;color:var(--fg);background:var(--head);border:1px solid var(--hard);padding:4px 6px;max-width:100%}
+  table.sdk select:focus{outline:none;border-color:var(--acc)}
+
+  /* ── thought chain / CoT ─────────────────────────────────────────── */
+  .lampick{width:10px;height:10px;border-radius:50%;border:1px solid var(--hard);background:transparent;flex:none;margin-left:auto;margin-right:4px}
+  .apanel .bhead .lamp{margin-left:0}
+  .lampick.on{background:var(--acc2);border-color:var(--acc2);box-shadow:0 0 9px rgba(255,176,0,.75);animation:blip 1s var(--ease2) infinite}
+  .apanel.lit{border-color:rgba(255,176,0,.55);box-shadow:0 0 0 1px rgba(255,176,0,.22),0 0 28px -8px rgba(255,176,0,.4)}
+  .apanel.flash{animation:flash .85s var(--ease2)}
+  @keyframes flash{0%,100%{box-shadow:0 0 0 1px var(--acc),0 0 22px -6px rgba(255,74,31,.5)}50%{box-shadow:0 0 0 2px var(--acc2),0 0 36px -4px rgba(255,176,0,.75)}}
+  .cot{margin-top:12px;border:1px solid var(--line);background:rgba(0,0,0,.25)}
+  .cot .ch{border-bottom:1px solid var(--line);background:var(--head);display:flex;align-items:center;gap:6px;padding:5px 9px;min-height:24px}
+  .cot .ch .ct{font-size:9px;font-weight:800;letter-spacing:1.8px;color:var(--dimm)}
+  .cot .ch .ctx{margin-left:auto;font-size:8.5px;color:var(--acc2);border:1px solid rgba(255,176,0,.45);padding:1px 6px;display:none;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cot .ch .ctx.on{display:inline-block}
+  .cot .stg{position:relative;padding:5px 10px 5px 26px;font-size:10px;line-height:1.55;color:var(--mut);border-left:2px solid transparent;margin-left:9px;animation:rise .45s var(--ease) both}
+  .cot .stg::before{content:"";position:absolute;left:-1px;top:11px;width:7px;height:7px;border-radius:50%;background:var(--dimm)}
+  .cot .stg.done::before{background:var(--acc)}
+  .cot .stg.now::before{background:var(--acc2);box-shadow:0 0 7px rgba(255,176,0,.85)}
+  .cot .stg .tg{font-size:8.5px;font-weight:800;letter-spacing:1.6px;color:var(--dimm);margin-right:4px}
+  .cot .stg.done .tg{color:var(--acc)}
+  .cot .stg.now{color:var(--fg);border-left-color:var(--acc2);animation:stgpulse 1.7s var(--ease2) infinite}
+  @keyframes stgpulse{0%,100%{background:rgba(255,176,0,.05)}50%{background:rgba(255,176,0,.14)}}
+  .cot .stg .cur{display:inline-block;width:6px;height:11px;background:var(--acc2);vertical-align:-2px;margin-left:5px;animation:curs .9s steps(2) infinite}
+  @keyframes curs{50%{opacity:0}}
+  .cot .ev{margin-top:2px;border-top:1px dashed var(--line);padding-bottom:2px}
+  .cot .ev .e{display:flex;gap:8px;padding:4px 10px;font-size:9.5px;line-height:1.5;color:var(--mut);animation:rise .4s var(--ease) both}
+  .cot .ev .e:nth-child(2){animation-delay:.06s}.cot .ev .e:nth-child(3){animation-delay:.12s}.cot .ev .e:nth-child(4){animation-delay:.18s}
+  .cot .ev .e .t{color:var(--dimm);white-space:nowrap}
+  .cot .ev .e .s{color:var(--acc2);font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-height:4px}
+  .chip{font-size:9.5px;border:1px solid var(--hard);padding:3px 8px;color:var(--mut);background:rgba(0,0,0,.25);letter-spacing:.4px}
+  .chip b{font-weight:800}
+  .chip.t-choice b{color:var(--acc)}
+  .chip.t-noul b{color:var(--acc2)}
+  .chip.t-score b{color:var(--live)}
+  .chip.t-decision b{color:var(--acid)}
+
+  /* ── activity charts ── */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);border:1px solid var(--line);border-top:0;background:rgba(255,255,255,.012)}
+  .kpi{padding:10px 14px;border-left:1px solid var(--line)}
+  .kpi:first-child{border-left:0}
+  .kpi .l{font-size:9.5px;font-weight:800;letter-spacing:1.8px;color:var(--mut)}
+  .kpi .v{font-size:22px;margin:4px 0 2px;font-weight:700}
+  .kpi .d{font-size:10px;color:var(--mut)}
+  .rows{margin-top:14px;display:grid;gap:14px}
+  .row{display:grid;gap:14px}
+  .tile{padding:12px 16px;border:1px solid var(--line);background:rgba(255,255,255,.012);min-width:0;position:relative}
+  .tile::before{content:"";position:absolute;top:0;left:0;width:18px;height:2px;background:var(--acc)}
+  .tile h2{margin:0;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase}
+  .tile .cap{font-size:10px;color:var(--mut);margin:3px 0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  canvas{display:block;width:100%}
+  .pfoot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:16px 0 8px;
+    font-size:9.5px;letter-spacing:1.2px;color:var(--dimm);padding:8px 2px}
+  #tip{position:fixed;pointer-events:none;background:var(--panel2);border:1px solid var(--acc);color:var(--fg);
+    padding:5px 8px;font:11px var(--mono);display:none;white-space:pre;z-index:9}
+  @media (max-width:1080px){ .agrid{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important;transition:none!important}
+    .sect{opacity:1;transform:none}
+  }
+</style>
+<script src="vendor/charts.js"></script>
+</head>
+<body>
+<div class="plate">
+  <div class="hazard"></div>
+  <header class="phead">
+    <div class="brand">
+      <span class="idx">KD-02</span>
+      <div>
+        <h1>DEMONSTRATION OUTPUT</h1>
+        <div class="sub">WPC2 DUAL-AGENT · JEV STATEMENTS + SDK CONFIG + ACTIVITY TELEMETRY <em id="rangeLabel"></em></div>
+      </div>
+    </div>
+    <div class="hctrls">
+      <div class="seg" id="seg"><button data-r="15m">15M</button><button data-r="1h">1H</button><button data-r="6h">6H</button><button data-r="24h">24H</button><button data-r="7d">7D</button><button data-r="1mo">1MO</button></div>
+      <button id="liveBtn" class="btn live" type="button">LIVE</button>
+    </div>
+  </header>
+  <div class="gates">
+    <span><b>NET</b> 8777 <a href="http://localhost:8777/kdwpc.html" target="_blank" rel="noopener">board</a></span>
+    <span><b>JEV</b> 8778 BRIDGE</span>
+    <span><b>OUT</b> 8779 THIS PAGE</span>
+    <span id="bridgeGate" class="gdead">bridge · —</span>
+    <span id="liveAge" class="gdead">offline</span>
+  </div>
+
+  <section class="sect">
+    <div class="secth"><span>01</span>AGENT OUTPUTS <em>· base_statement → jev_statements (Typesafe System One)</em></div>
+    <div class="agrid">
+      <div class="apanel" id="panelPlan">
+        <i class="cor tl"></i><i class="cor br"></i>
+        <div class="bhead"><span class="bidx">02/B</span><h3>AGENT-PLAN · OUTPUT</h3><i class="lampick" id="trigPlan" title="base_statements / JEV trigger lamp — lights when a base statement fires"></i><i class="lamp" id="lampPlan"></i></div>
+        <div class="arole">statement gen · base → CHOICE / NOUL / SCORE</div>
+        <div class="abody" id="bodyPlan"></div>
+      </div>
+      <div class="apanel" id="panelCoding">
+        <i class="cor tl"></i><i class="cor br"></i>
+        <div class="bhead"><span class="bidx">04/C</span><h3>AGENT-CODING · OUTPUT</h3><i class="lampick" id="trigCoding" title="base_statements / JEV trigger lamp"></i><i class="lamp" id="lampCoding"></i></div>
+        <div class="arole">quality checks · browser-capture diff → verdicts</div>
+        <div class="abody" id="bodyCoding"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sect">
+    <div class="secth"><span>02</span>ACTIVITY — WHAT THE AGENTS WORKED ON <em>· real OpenCode session logs</em></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="rows">
+      <div class="row" style="grid-template-columns:5fr 7fr">
+        <div class="tile"><h2>When</h2><div class="cap" id="heatCap"></div><canvas data-c="heat" height="220"></canvas></div>
+        <div class="tile"><h2>Where the tokens went</h2><div class="cap">tokens → agent → theme → work kind</div><canvas data-c="sankey" height="236"></canvas></div>
+      </div>
+      <div class="row" style="grid-template-columns:7fr 5fr">
+        <div class="tile"><h2>Themes over time</h2><div class="cap">agent busy time per theme</div><canvas data-c="stream" height="220"></canvas></div>
+        <div class="tile"><h2>Topic map</h2><div class="cap">area = busy time · deeper fill = rising</div><canvas data-c="topics" height="222"></canvas></div>
+      </div>
+      <div class="row" style="grid-template-columns:repeat(6,1fr)">
+        <div class="tile"><h2>Terms</h2><div class="cap">in your prompts, vs previous period</div><canvas data-c="terms" height="200"></canvas></div>
+        <div class="tile"><h2>Work mix</h2><div class="cap">busy time by work kind · from tool calls</div><canvas data-c="mixChart" height="200"></canvas></div>
+        <div class="tile"><h2>Agents at once</h2><div class="cap">peak ─ · average while active ▒</div><canvas data-c="conc" height="200"></canvas></div>
+        <div class="tile"><h2>Tools</h2><div class="cap">calls, by work kind</div><canvas data-c="tools" height="200"></canvas></div>
+        <div class="tile"><h2>Subagents</h2><div class="cap">runs by type · outcome</div><canvas data-c="subTypes" height="200"></canvas></div>
+        <div class="tile"><h2>Subagent runs</h2><div class="cap">when × how long · by model</div><canvas data-c="subRuns" height="200"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="pfoot"><span id="footL"></span><span id="footR"></span></footer>
+</div>
+<div id="tip"></div>
+
+<script>
+"use strict";
+/* dark-adapted palette for vendor/charts.js (it draws everything from P) */
+const P = { bg:"#0b0b0d", fg:"#e9e5da", accent:"#ff4a1f", you:"#ffb000", font:"Cascadia Mono",
+  themes:["#ff4a1f","#ffb000","#58e081","#c9f24b","#c98ff2","#4cc9f0","#ff8a7a","#94907f","#f78fb0"],
+  kinds:{ "Pi":"#8f8b7d", "Claude Code":"#ff8a7a", "Codex":"#4cc9f0", "OpenCode":"#58e081", "Subagents":"#c98ff2" } };
+const qs = new URLSearchParams(location.search);
+let R = qs.get("r") || "24h", SNAP = null, ORCH = null, LIVE = null;
+let liveOn = false, timer = null, ageTick = null, fetchFail = false, lastFetch = null;
+const tip = document.getElementById("tip");
+const JEVBRIDGE = "http://localhost:" + (qs.get("jep") || 8778);
+const jevDraft = {};
+addEventListener("input", e => { const t = e.target; if (t && t.id && t.id.startsWith("jevIn-")) jevDraft[t.id.slice(6)] = t.value; });
+
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function ago(sec){
+  if (sec == null) return "—";
+  if (sec < 60) return sec + "s ago";
+  const m = Math.round(sec/60); if (m < 60) return m + "m ago";
+  return Math.round(m/60) + "h ago";
+}
+function pill(st){ return `<span class="pill ${st}">${st.toUpperCase()}</span>`; }
+function jvVal(v){
+  if (v == null) return "—";
+  if (typeof v === "object"){
+    const bits = [];
+    if ("confidence" in v) bits.push((+v.confidence || 0) * 100 + "%");
+    const pick = v.choice ?? v.noul ?? v.score ?? v.value ?? v.answer;
+    if (pick != null) bits.unshift(String(pick));
+    return bits.length ? bits.join(" · ") : JSON.stringify(v);
+  }
+  return String(v);
+}
+const JEVQ = {
+  plan:   { stack_choice: "stack", base_change_noul: "changes base?", impact_score: "impact" },
+  coding: { constraint_choice: "constraint", coverage_noul: "covered by source?", complexity_score: "complexity" },
+};
+function fmtStatements(agent, answers){
+  const L = JEVQ[agent] || {};
+  return Object.entries(answers || {}).map(([k, v]) =>
+    `<div><span class="lbl">${L[k] || k}</span> → <b>${esc(jvVal(v))}</b></div>`).join("");
+}
+function jevStatus(j){
+  if (!j || !j.loaded) return `<span class="pill idle">NO RULESET</span>`;
+  const live = j.status === "LIVE";
+  return `<span class="pill ${live ? "live-p" : "stub"}">JEV ${live ? "LIVE" : "PENDING"}</span>`;
+}
+function buildSug(agent){
+  const ag = (LIVE && LIVE.agents && LIVE.agents[agent]) || {};
+  const J = ag.jev || {};
+  const liveMode = J.status === "LIVE";
+  const sug = ag.jev_suggestion || null;
+  const note = liveMode
+    ? `<div class="jnote"><b>JEV LIVE</b> — generate goes straight to api.typesafe.ai/v1/systemone</div>`
+    : `<div class="jnote">JEV key not set — in terminal first: <span class="cmd">set JEV_API_KEY=sk-…</span> then <span class="cmd">python kdwpc_jev.py</span> (or <span class="cmd">run.cmd jev</span>)</div>`;
+  const prev = sug
+    ? `<div class="st"><b>last base_statement</b> “${esc(sug.base_statement)}” · status <b>${esc(sug.status || "—")}</b>${sug.model ? " · model " + esc(sug.model) : ""}</div>` +
+      (sug.statements ? `<div class="st">${fmtStatements(agent, sug.statements)}</div>` : "") +
+      (sug.raw ? `<div class="js err">upstream: ${esc(sug.raw)}</div>` : "")
+    : "";
+  return `<textarea id="jevIn-${agent}" class="in" placeholder="base_statement → JEV generates jev_statements… e.g. “i want three.js stack to be added for visualisation and can read .excalidraw file and generate the requested drawings from the .excalidraw”">${esc(jevDraft[agent] || "")}</textarea>` +
+    `<div class="jbb"><button id="jevBtn-${agent}" type="button">Generate → jev_statements</button><span class="js" id="jevSt-${agent}"></span></div>` +
+    note + prev;
+}
+async function jevGenerate(agent){
+  const ta = document.getElementById("jevIn-" + agent), st = document.getElementById("jevSt-" + agent),
+        btn = document.getElementById("jevBtn-" + agent);
+  const text = (ta && ta.value || "").trim();
+  if (!text){ if (st){ st.textContent = "type a base statement first"; st.className = "js err"; } return; }
+  if (st) st.textContent = "asking JEV…"; if (btn) btn.disabled = true;
+  try{
+    const r = await fetch(JEVBRIDGE + "/suggest", { method:"POST",
+      headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ agent, base_statement: text }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok){
+      st.textContent = (body.error || ("HTTP " + r.status)) + (r.status === 503 ? " → set JEV_API_KEY in terminal: set JEV_API_KEY=sk-…" : "");
+      st.className = "js err"; return;
+    }
+    if (body.raw){ st.textContent = "JEV upstream error: " + body.raw; st.className = "js err"; return; }
+    if (st){ st.textContent = "generated ✓ — jev_statements saved to kdwpc_live.json"; st.className = "js"; }
+    try{ const l = await json("data/kdwpc_live.json"); if (l){ LIVE = l; diffThoughts(); renderOut(); } }catch(_){}
+    const st2 = document.getElementById("jevSt-" + agent);
+    if (st2){ st2.textContent = "generated ✓ — jev_statements saved to kdwpc_live.json"; st2.className = "js"; }
+  }catch(e){
+    st.textContent = "bridge not running → terminal: python kdwpc_jev.py  (or run.cmd live)";
+    st.className = "js err";
+  }finally{ if (btn) btn.disabled = false; }
+}
+
+/* ── SDK config (coding) ─────────────────────────────────────────── */
+const CODING_MODELS = ["gpt-5.5","gpt-5.4","gpt-5.4-mini","gpt-5.4-nano",
+                       "gpt-5.6-sol","gpt-5.6-luna","gpt-5.6-terra",
+                       "gpt-6-sol","gpt-6-luna","deepseek-v4-flash"];
+function sdkTable(agent, sdk){
+  if (!sdk || !sdk.provider) return "";
+  if (agent === "plan"){
+    return `<table class="sdk">
+      <tr><td class="k">provider</td><td class="v"><b>opencode</b></td></tr>
+      <tr><td class="k">model</td><td class="v">${esc(sdk.model || "big-pickle")}</td></tr>
+      <tr><td class="k">key</td><td class="v">n/a · opencode account</td></tr>
+      <tr><td class="k">tools</td><td class="v">agentic_tool_enable · tool_calls · high_quality_output · prefer_less_token</td></tr></table>`;
+  }
+  const models = (sdk.models && sdk.models.length) ? sdk.models : CODING_MODELS;
+  const cur = sdk.model || "deepseek-v4-flash";
+  const keyOk = /^SET/.test(sdk.key_status || "");
+  const stOk = String(sdk.stack_compliant || "").startsWith("COMPLIANT");
+  const stBad = String(sdk.stack_compliant || "").startsWith("NON-COMPLIANT");
+  const stCol = stOk ? "var(--live)" : stBad ? "#ff8a7a" : "var(--acc2)";
+  return `<table class="sdk">
+    <tr><td class="k">provider</td><td class="v"><b>openai SDK</b></td></tr>
+    <tr><td class="k">base url</td><td class="v">${esc(sdk.base_url || "https://litellm.rapidscreen.io/v1")}</td></tr>
+    <tr><td class="k">stack</td><td class="v"><b>${esc(sdk.stack || "—")}</b> · <span style="color:${stCol}">${esc(sdk.stack_compliant || "pending")}</span><div class="js" style="margin-top:2px">may only come from ${esc(sdk.stack_source || "base_statements_stacks.md")} · JEV verifies compliance with the decisions</div></td></tr>
+    <tr><td class="k">stack allowed</td><td class="v">${esc((sdk.stack_allowed || []).join(" · ") || "—")}</td></tr>
+    <tr><td class="k">jev decision</td><td class="v">${esc(sdk.jev_stack_decision || "— pending JEV key / Generate")}</td></tr>
+    <tr><td class="k">model</td><td class="v"><select id="sdkModel-coding" data-agent="coding">` +
+      models.map(m => `<option value="${esc(m)}"${m === cur ? " selected" : ""}>${esc(m)}</option>`).join("") + `</select></td></tr>
+    <tr><td class="k">key</td><td class="v" style="color:${keyOk ? "var(--live)" : "#ff8a7a"}">${esc(sdk.key_status || "missing · env-only (OPENAI_API_KEY)")}</td></tr>
+    <tr><td class="k">tools</td><td class="v">agentic_tool_enable · tool_calls · high_quality_output · prefer_less_token · token_efficient (imports compactDOM · snapDOM · html2canvas · playwrightOrbrowserOSneo)</td></tr></table>` +
+    `<div class="js" id="sdkSt-coding"></div>`;
+}
+async function sdkSet(model){
+  const st = document.getElementById("sdkSt-coding");
+  if (st){ st.textContent = "saving…"; st.className = "js"; }
+  try{
+    const r = await fetch(JEVBRIDGE + "/sdk", { method:"POST",
+      headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ agent:"coding", model }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok){ if (st){ st.textContent = (body && body.error) || ("HTTP " + r.status); st.className = "js err"; } return; }
+    if (st){ st.textContent = "saved ✓ model → " + (body.model || model); st.className = "js"; }
+    try{ const l = await json("data/kdwpc_live.json"); if (l){ LIVE = l; renderOut(); } }catch(_){}
+    const st2 = document.getElementById("sdkSt-coding");
+    if (st2){ st2.textContent = "saved ✓ model → " + (body.model || model); st2.className = "js"; }
+  }catch(e){
+    if (st){ st.textContent = "bridge not running → terminal: python kdwpc_jev.py (choice kept in browser only)"; st.className = "js err"; }
+  }
+}
+
+/* ── THOUGHT CHAIN / CoT per agent ───────────────────────────────────
+   Live, data-driven: stages mirror the agent's real pipeline (base
+   statements -> stack equality -> seed -> handoff; receive -> parse ->
+   build -> JEV check -> reply). Real-fact gating: "done" only when the
+   collected state confirms it (seeds, msgs, artifacts, JEV key). Events
+   (base-statement trigger, JEV generation, seed handoffs) drive the
+   TRIGGER lamp + panel highlight + the context chip. Never fabricated:
+   every line is built from state fields only.                       */
+const RM2 = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let SEEN = { plan:{ bs:{}, sug:0, comm0:"", task:"" }, coding:{ bs:{}, sug:0, comm1:"", task:"" } };
+let EV = { plan:[], coding:[] };
+let TRIG = { plan:0, coding:0 };
+function bsLabel(nm){ const p = String(nm||"").replace(/\.md$/,"").split("_"); return (p[0]||"base") + (p[1] ? " · " + p[1].slice(0,14) : ""); }
+function stackApproved(){ return ((ORCH && ORCH.seeds && ORCH.seeds.plan_to_coding) || {}).approved_stack || null; }
+function fmtT(ms){ const d = new Date(ms); return "T" + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0") + ":" + String(d.getSeconds()).padStart(2,"0"); }
+function pushEv(agent, kind, txt, src){
+  EV[agent].unshift({ ts: Date.now(), kind, txt, src });
+  EV[agent] = EV[agent].slice(0, 6);
+  TRIG[agent] = Date.now();
+}
+function flashPanel(id){
+  const el = document.getElementById(id); if (!el || RM2) return;
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 900);
+}
+function diffThoughts(){
+  if (!LIVE) return;
+  const sd = (ORCH && ORCH.seeds) || {};
+  const sd0 = SD0(), sd1 = SD1();
+  for (const agent of ["plan","coding"]){
+    const A = LIVE.agents[agent] || {}, S = SEEN[agent];
+    /* base-statements trigger -> context for the JEV box (plan) */
+    const bs = A.base_statements || {};
+    for (const nm of Object.keys(bs)){
+      const t = (bs[nm] && bs[nm].ts) || 0;
+      if (t && t > (S.bs[nm] || 0)){
+        S.bs[nm] = t;
+        if (agent === "plan"){
+          const st = stackApproved() || "(keep current stack)";
+          pushEv("plan","bs",
+            `“Well based on our compliance of ${bsLabel(nm)} i think we should use ${st} for this case, what do you think Agent-Coding?”`,
+            bs[nm].file);
+          flashPanel("panelPlan");
+        }
+      }
+    }
+    /* JEV generation trigger (jev_statements saved by the bridge) */
+    const sug = A.jev_suggestion;
+    if (sug && sug.ts && sug.ts !== S.sug){
+      S.sug = sug.ts;
+      const bsTxt = String(sug.base_statement || "").slice(0, 56);
+      pushEv(agent, "jev",
+        agent === "plan"
+          ? `“JEV ← base_statement “${bsTxt}” → QUESTION SET: stack choice / base change noul / impact score”`
+          : `“JEV ← base_statement “${bsTxt}” → QUESTION SET: constraint / coverage noul / complexity score”`,
+        sug.base_statement || "");
+      flashPanel(agent === "plan" ? "panelPlan" : "panelCoding");
+    }
+    const task = A.task || "";
+    if (task && task !== S.task){ S.task = task; pushEv(agent, "task", `“new handoff → ${task.slice(0,72)}”`); }
+  }
+  /* seed handoffs = the actual PLAN<->CODING communication */
+  const s00 = sd["00_plan_to_coding"] || sd0.status || "MISSING";
+  const s01 = sd["01_coding_to_plan"] || sd1.status || "MISSING";
+  const c0 = "00:" + s00 + "·" + (sd0.approved_stack || "") + "·" + (sd0.status || "") + "·" + (sd0.source_visual || "").slice(0,12) + "·" + ((sd0.tasks||[]).length);
+  const c1 = "01:" + s01 + "·" + ((sd1.build||{}).artifacts||[]).length + "·" + ((sd1.build||{}).stack_used || "") + "·" + (sd1.status || "");
+  if (c0.indexOf("00:MISSING") < 0 && c0 !== SEEN.plan.comm0){
+    SEEN.plan.comm0 = c0;
+    pushEv("plan","comm",
+      `“seed 00 → AGENT-CODING · status ${s00} · stack ${sd0.approved_stack || "—"} · visual ${sd0.source_visual || "—"} · tasks ${(sd0.tasks||[]).length}”`,
+      "00_seed_plan_to_coding");
+    pushEv("coding","comm",
+      `“receive seed 00 · build per approved .excalidraw · stack ${sd0.approved_stack || "—"} (${sd0.status || ""})”`,
+      "00_seed_plan_to_coding");
+    flashPanel("panelPlan"); flashPanel("panelCoding");
+  }
+  if (c1.indexOf("01:MISSING") < 0 && c1 !== SEEN.coding.comm1){
+    SEEN.coding.comm1 = c1;
+    pushEv("coding","comm",
+      `“seed 01 → AGENT-PLAN · status ${s01} · artifacts ${((sd1.build||{}).artifacts||[]).length} · stack ${(sd1.build||{}).stack_used || "—"}”`,
+      "01_seed_coding_to_plan");
+    pushEv("plan","comm", `“receive seed 01 · AGENT-CODING verified (${s01})”`, "01_seed_coding_to_plan");
+    flashPanel("panelPlan"); flashPanel("panelCoding");
+  }
+}
+function SD0(){ return (ORCH && ORCH.seeds && ORCH.seeds.plan_to_coding) || {}; }
+function SD1(){ return (ORCH && ORCH.seeds && ORCH.seeds.coding_to_plan) || {}; }
+function thoughtStages(agent){
+  const A = (LIVE && LIVE.agents && LIVE.agents[agent]) || {};
+  const live = A.status === "running" || A.status === "warm";
+  const sd = (ORCH && ORCH.seeds) || {};
+  const p0 = SD0(), p1 = SD1();
+  const bs = A.base_statements || {};
+  const bsRead = Object.keys(bs).length > 0 && Object.values(bs).some(b => b.ts > 0);
+  const s00 = sd["00_plan_to_coding"] || p0.status || "MISSING", s01 = sd["01_coding_to_plan"] || p1.status || "MISSING";
+  const st = [];
+  if (agent === "plan"){
+    st.push({ t:"READ",  done: bsRead,
+      txt: bsRead ? "base statements · stacks + viewports loaded" : "waiting for base statements stacks / viewports" });
+    st.push({ t:"CHECK", done: !!p0.approved_stack,
+      txt: p0.approved_stack ? `equality = == === survives · stack → “${p0.approved_stack}” matches approved` : "run stack equality = == === on the base statements" });
+    st.push({ t:"THINK", done: (A.msgs||0) > 0,
+      txt: A.task ? `planning “${A.task}”` : "synthesising seed · no task text captured" });
+    st.push({ t:"SEED",  done: !!s00 && s00 !== "MISSING",
+      txt: `emit seed 00 · visual ${p0.source_visual || "—"} · tasks ${(p0.tasks||[]).length}` });
+    st.push({ t:"MSG",   done: s00 === "APPROVED",
+      txt: "handshake → AGENT-CODING · stack approved, build it" });
+  } else {
+    st.push({ t:"RECV",  done: !!s00 && s00 !== "MISSING", txt: "receive seed 00 from AGENT-PLAN" });
+    st.push({ t:"PARSE", done: (A.msgs||0) > 0,
+      txt: "parse approved .excalidraw → visual_outline (source of truth)" });
+    st.push({ t:"BUILD", done: !!(p1 && p1.build),
+      txt: `artifacts ${((p1.build||{}).artifacts||[]).length} · stack ${(p1.build||{}).stack_used || "—"}` });
+    st.push({ t:"JEV",   done: !!(A.jev && A.jev.status === "LIVE"),
+      txt: "quality check · browser-capture diff → verdict" });
+    st.push({ t:"MSG",   done: !!s01 && s01 !== "MISSING",
+      txt: `seed 01 back → AGENT-PLAN · status ${s01 || "—"}` });
+  }
+  const nowIdx = st.findIndex(s => !s.done);
+  return { st, cur: live ? (nowIdx < 0 ? st.length - 1 : nowIdx) : -1 };
+}
+function renderCot(agent){
+  const el = document.getElementById(agent === "plan" ? "cotPlan" : "cotCoding"); if (!el) return;
+  const A = (LIVE && LIVE.agents && LIVE.agents[agent]) || {};
+  const live = A.status === "running" || A.status === "warm";
+  const { st, cur } = thoughtStages(agent);
+  const trig = Date.now() - TRIG[agent] < 9000;
+  const bsEnt = Object.entries(A.base_statements || {}).filter(([k,v]) => v && v.ts > 0);
+  const ctx = bsEnt.map(([k,v]) => v.file).join(" · ");
+  const rows = st.map((s,i) =>
+    `<div class="stg ${s.done?"done":""} ${i===cur?"now":""}"><span class="tg">${s.t}</span> ${esc(s.txt)}${i===cur && !RM2 ? "<span class='cur'></span>" : ""}</div>`).join("");
+  const evs = EV[agent].slice(0,4).map(e =>
+    `<div class="e"><span class="t">${fmtT(e.ts)}</span><span>${esc(e.txt)}</span>${e.src ? ` <span class="s">[${esc(e.src)}]</span>` : ""}</div>`).join("");
+  el.innerHTML =
+    `<div class="ch"><span class="ct">THOUGHT CHAIN · ${agent.toUpperCase()}</span>` +
+    `<span class="ct" style="margin-left:6px;color:${live ? "var(--live)" : "var(--dimm)"}">${(A.status||"idle").toUpperCase()}</span>` +
+    (ctx ? `<span class="ctx ${trig?"on":""}" title="latest trigger source">ctx · ${esc(ctx)}</span>` : "") + `</div>` +
+    rows + (evs ? `<div class="ev">${evs}</div>` : "");
+  if (document.getElementById(agent === "plan" ? "trigPlan" : "trigCoding"))
+    document.getElementById(agent === "plan" ? "trigPlan" : "trigCoding").classList.toggle("on", trig);
+  if (document.getElementById(agent === "plan" ? "panelPlan" : "panelCoding"))
+    document.getElementById(agent === "plan" ? "panelPlan" : "panelCoding").classList.toggle("lit", trig);
+}
+/* minified {choice} {noul} {score} {decision} chips per agent */
+function jevChips(agent){
+  const sug = (LIVE && LIVE.agents && LIVE.agents[agent] && LIVE.agents[agent].jev_suggestion);
+  if (!sug || !sug.statements) return "";
+  const S = sug.statements;
+  const order = agent === "plan"
+    ? [["stack_choice","choice"],["base_change_noul","noul"],["impact_score","score"]]
+    : [["constraint_choice","choice"],["coverage_noul","noul"],["complexity_score","score"]];
+  const Q = JEVQ[agent] || {};
+  let chips = order.map(([k,type]) => {
+    const v = S[k]; if (v == null) return "";
+    return `<span class="chip t-${type}"><b>{${type}}</b> ${esc(Q[k]||k)} · ${esc(jvVal(v))}</span>`;
+  }).join("");
+  const dec = S.decision != null ? S.decision : (sug.raw && sug.raw.decision != null ? sug.raw.decision : null);
+  chips += `<span class="chip t-decision"><b>{decision}</b> ${dec == null ? "— pending JEV key" : esc(String(dec))}</span>`;
+  return chips;
+}
+
+function setLamp(id, st){
+  const l = document.getElementById("lamp" + id); if (!l) return;
+  l.className = "lamp " + (st === "running" ? "live" : "");
+}
+function renderOut(){
+  const ag0 = { status:"idle", jev:{ loaded:false }, jev_suggestion:null, sdk:null };
+  const L = LIVE || { agents:{ plan:{...ag0}, coding:{...ag0} },
+                      jev_mode:"STUB", jev_status:"PENDING_TYPESAFE_API_KEY" };
+  const A = L.agents;
+
+  setLamp("Plan", A.plan.status); setLamp("Coding", A.coding.status);
+
+  /* AGENT-PLAN output panel */
+  document.getElementById("bodyPlan").innerHTML =
+    pill(A.plan.status) + " " + jevStatus(A.plan.jev) +
+    `<div class="jnote" style="margin-top:8px">role · <b>${esc((A.plan.jev && A.plan.jev.role) || "statement gen: base statements → JEV statements")}</b></div>` +
+    buildSug("plan") +
+    `<div class="cot" id="cotPlan"></div>` +
+    `<div class="chips" id="chipsPlan"></div>`;
+  const pb = document.getElementById("jevBtn-plan"); if (pb) pb.onclick = () => jevGenerate("plan");
+
+  /* AGENT-CODING output panel */
+  document.getElementById("bodyCoding").innerHTML =
+    pill(A.coding.status) + " " + jevStatus(A.coding.jev) +
+    `<div class="jnote" style="margin-top:8px">role · <b>${esc((A.coding.jev && A.coding.jev.role) || "quality checks: browser-capture diff → verdicts")}</b></div>` +
+    buildSug("coding") +
+    `<div class="cot" id="cotCoding"></div>` +
+    `<div class="chips" id="chipsCoding"></div>` +
+    `<div class="sdkcap">SDK CONFIG · CODING <span style="color:var(--acc2)">— stack gated by base statements + JEV</span></div>` + sdkTable("coding", A.coding.sdk) +
+    `<div class="sdkcap">SDK CONFIG · PLAN</div>` + sdkTable("plan", A.plan.sdk);
+  const cb = document.getElementById("jevBtn-coding"); if (cb) cb.onclick = () => jevGenerate("coding");
+  const cs = document.getElementById("sdkModel-coding"); if (cs) cs.onchange = () => sdkSet(cs.value);
+
+  renderCot("plan"); renderCot("coding");
+  document.getElementById("chipsPlan").innerHTML = jevChips("plan");
+  document.getElementById("chipsCoding").innerHTML = jevChips("coding");
+}
+
+/* ── activity charts (vendor/charts.js engine, dark palette) ─────── */
+function render(){
+  document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.r === R));
+  const rr = SNAP.ranges[R];
+  document.getElementById("rangeLabel").textContent = "· " + rr.label.toUpperCase();
+  document.getElementById("heatCap").textContent =
+    { "theme-hour":"theme × hour", "theme-time":"theme × time", "day-hour":"day × hour of day", "week-hour":"week × hour of day" }[rr.heat.mode] + " · agent time vs your time";
+  document.getElementById("kpis").innerHTML = kpiItems(SNAP, R).map(k =>
+    `<div class="kpi"><div class="l">${k.label}</div><div class="v">${k.value}</div><div class="d"><b style="color:${k.plain ? "inherit" : k.up ? P.accent : P.you}">${k.delta}</b>${k.delta && !k.plain && k.delta !== "new" ? " vs prev" : ""}</div></div>`).join("");
+  document.querySelectorAll("canvas[data-c]").forEach(cv => {
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = +cv.getAttribute("height");
+    cv.style.height = h + "px"; cv.width = w * dpr; cv.height = h * dpr;
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    cv._hits = window[cv.dataset.c](ctx, w, h, SNAP, R, P) || [];
+    cv.onmousemove = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      const hit = cv._hits.find(t => x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h);
+      if (!hit){ tip.style.display = "none"; return; } tip.textContent = hit.text; tip.style.display = "block";
+      tip.style.left = e.clientX + 12 + "px"; tip.style.top = e.clientY + 12 + "px"; };
+    cv.onmouseleave = () => tip.style.display = "none";
+  });
+  const c = SNAP.counts;
+  document.getElementById("footL").textContent = "no AI · rule themes · work kind from tool calls · KD-WPC dual-agent · output board :8779";
+  document.getElementById("footR").textContent =
+    `OpenCode ${c.opencode ?? 0} · Pi ${c.pi ?? 0} · Claude Code ${c.claude ?? 0} · Codex ${c.codex ?? 0} sessions`;
+  tickLiveAge();
+}
+function tickLiveAge(){
+  const el = document.getElementById("liveAge");
+  if (!SNAP && !LIVE){ el.textContent = "offline"; return; }
+  const src = (liveOn && lastFetch) ? lastFetch : (SNAP ? SNAP.generated : Date.now()/1000);
+  const age = Math.round(Date.now()/1000 - src);
+  if (!liveOn){ el.textContent = "updated " + ago(age) + (fetchFail ? " · reconnecting" : ""); el.className = "gates " + (fetchFail ? "gdead" : ""); return; }
+  el.textContent = `LIVE · ${ago(age)}` + (fetchFail ? " · reconnecting" : " · poll ok");
+  el.className = "gates " + (fetchFail ? "gdead" : "glive");
+}
+
+/* ── fetching + LIVE polling ─────────────────────────────────────── */
+async function json(p){ const r = await fetch(p + (p.includes("?") ? "&" : "?") + "t=" + Date.now()); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }
+async function refresh(){
+  try{
+    await Promise.all([
+      json(qs.get("snap") || "data/snapshot.json").then(s => { SNAP = s; }),
+      json(qs.get("orch") || "data/kdwpc_orchestrator.json").then(o => { ORCH = o; }).catch(() => { ORCH = null; }),
+      json(qs.get("live") || "data/kdwpc_live.json").then(l => { LIVE = l; }).catch(() => { LIVE = null; }),
+      fetch(JEVBRIDGE + "/health").then(r => r.json()).then(h => {
+        const g = document.getElementById("bridgeGate");
+        g.textContent = "bridge · " + (h.key === "set" ? "key set · " + (h.model || "") : "key missing");
+        g.className = "gates " + (h.key === "set" ? "gacc" : "gdead");
+      }).catch(() => { const g = document.getElementById("bridgeGate"); if (g){ g.textContent = "bridge · down"; g.className = "gates gdead"; } }),
+    ]);
+    fetchFail = false; lastFetch = Date.now()/1000;
+    if (SNAP) render(); else document.getElementById("kpis").innerHTML = "";
+    diffThoughts();
+    renderOut();
+  }catch(e){ fetchFail = true; tickLiveAge(); }
+}
+document.querySelectorAll("#seg button").forEach(b => b.onclick = () => { R = b.dataset.r; render(); });
+document.getElementById("liveBtn").onclick = () => {
+  liveOn = !liveOn;
+  const b = document.getElementById("liveBtn");
+  b.classList.toggle("on", liveOn); b.textContent = liveOn ? "LIVE ✓" : "LIVE";
+  clearInterval(timer); clearInterval(ageTick);
+  if (liveOn){
+    refresh();
+    timer = setInterval(refresh, 20000);
+    ageTick = setInterval(tickLiveAge, 1000);
+  } else { render(); tickLiveAge(); }
+};
+requestAnimationFrame(() => document.body.classList.add("go"));
+refresh();
+</script>
+</body>
+</html>
